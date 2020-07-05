@@ -185,7 +185,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         }
     }
     
-    private var inputMode: Int = 0 //0 for word-level, 1 for char-level
+    private var inputMode: Int = 1 //0 for word-level, 1 for char-level
     private var T9MenuArray = [String](arrayLiteral: "abc", "def", "ghi", "jkl", "mno", "pqrs", "tuv", "wxyz", "_.?")
     private var charTable = [String](arrayLiteral: "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "_", ".", "?")
     private var T9MenuLabel = [UILabel]()
@@ -251,7 +251,6 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
     }
     
     private func showSubMenu(idx: Int) {
-        T9SubMenuLabel[idx][subMenuPos].backgroundColor = UIColor.black
         subMenuPos = 0
         for i in 0 ..< T9SubMenuCnt[idx] {
             T9SubMenuLabel[idx][i].isHidden = false
@@ -263,6 +262,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         for i in 0 ..< T9SubMenuCnt[idx] {
             T9SubMenuLabel[idx][i].isHidden = true
         }
+        T9SubMenuLabel[idx][subMenuPos].backgroundColor = UIColor.black
     }
     
     private func enterSubMenu(idx: Int) {
@@ -277,7 +277,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
     
     private func charLevelMainMenuMoveLeft() {
         T9MenuLabel[mainMenuPos].backgroundColor = UIColor.black
-        mainMenuPos = (mainMenuPos - 1) % 9
+        mainMenuPos = (mainMenuPos - 1 + 9) % 9
         T9MenuLabel[mainMenuPos].backgroundColor = UIColor(red: 0/255, green: 125/255, blue: 0/255, alpha: 1.0)
     }
     
@@ -287,9 +287,15 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         T9MenuLabel[mainMenuPos].backgroundColor = UIColor(red: 0/255, green: 125/255, blue: 0/255, alpha: 1.0)
     }
     
+    private func charLevelMainMenuMoveUp() {
+        T9MenuLabel[mainMenuPos].backgroundColor = UIColor.black
+        mainMenuPos = (mainMenuPos - 3 + 9) % 9
+        T9MenuLabel[mainMenuPos].backgroundColor = UIColor(red: 0/255, green: 125/255, blue: 0/255, alpha: 1.0)
+    }
+    
     private func charLevelSubMenuMoveLeft() {
         T9SubMenuLabel[mainMenuPos][subMenuPos].backgroundColor = UIColor.black
-        subMenuPos = (subMenuPos - 1) % T9SubMenuCnt[mainMenuPos]
+        subMenuPos = (subMenuPos - 1 + T9SubMenuCnt[mainMenuPos]) % T9SubMenuCnt[mainMenuPos]
         T9SubMenuLabel[mainMenuPos][subMenuPos].backgroundColor = UIColor(red: 0/255, green: 125/255, blue: 0/255, alpha: 1.0)
     }
     
@@ -353,7 +359,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         modeLabel?.center = CGPoint(x: xLabel + 2*labelHeight, y: yLabel + labelOffset)
         modeLabel?.textAlignment = NSTextAlignment.left
         modeLabel?.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2))
-        modeLabel?.text = "Mode: Word"
+        modeLabel?.text = "Mode: Char"
         modeLabel?.font = UIFont(name: "Courier", size: 20.0)
         modeLabel?.textColor = UIColor.white
         self.view.addSubview(modeLabel!)
@@ -379,7 +385,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
     private func loadSentences() {
         var offset: Int = 0
         var tempArr = [String]()
-        if let path = Bundle.main.path(forResource: "T-40", ofType: "txt") {
+        if let path = Bundle.main.path(forResource: "phrases", ofType: "txt") { //change in word
             do {
                 let data = try String(contentsOfFile: path, encoding: .utf8)
                 let sentence = data.components(separatedBy: "\r\n")
@@ -390,7 +396,8 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         }
         //drop the last zero-len one and shuffle the sentences
         let _ = tempArr.popLast()
-//        tempArr.shuffle()
+        tempArr.shuffle()
+        print(tempArr)
        
         var data: String = ""
         for i in 0..<BLKS*PHR_PER_BLK {
@@ -443,7 +450,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
             return;
         }
         DispatchQueue.main.async {
-            self.sentenceLabel?.text = self.sentenceArray[self.curSentence] + " "
+            self.sentenceLabel?.text = self.sentenceArray[self.curSentence] + " "//change in word
             self.blkLabel?.text = "BLK: " + String(self.curSentence/PHR_PER_BLK+1) + "/" + String(BLKS)
             self.phrLabel?.text = "PHR: " + String(self.curSentence%PHR_PER_BLK+1) + "/" + String(PHR_PER_BLK)
         }
@@ -455,7 +462,8 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         if(inputLabel!.text?.count != sentenceLabel!.text?.count) {
             return;
         }
-        
+        mainMenuPos = 4
+        subMenuPos = 0
         if let path = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
             sentenceData += "\n" + String(matchY) + " " + String(matchN) + " " + String(selectY) + " " + String(selectN) + " " + String(undo) + " " + String(del) + "\n"
             sentenceData += (inputLabel?.text!)! + "\n"
@@ -1205,7 +1213,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
 //                print(cnt, curTS)
                 if(cnt > minCnt && curTS - lastTouchTS > minTouchInterval) {
                     serialQueue.sync { touched = true }
-                    print("trigger", curTS)
+//                    print("trigger", curTS)
                     lastTouchTS = curTS
                 }
             }
@@ -1299,7 +1307,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
             }
             let pressed = (flag == delayFrame) ? true : false;
             if pressed {
-                print("pressed")
+//                print("pressed")
             }
             
             var curLength:Int
@@ -1337,12 +1345,15 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
     }
     
     //variables for char level input
+    private var charOp:Int = 0
     private func handleCharLevel(dict: NSDictionary) {
         let moveLeft = dict["moveLeft"] as! Bool
         let moveRight = dict["moveRight"] as! Bool
+        let moveUp = dict["moveUp"] as! Bool
         let validTouch = dict["validTouch"] as! Bool
         let touchHand = dict["touchHand"] as! Int
         if(moveLeft) {
+            charOp += 1
             if(menuLevel == 1) {
                 DispatchQueue.main.async {
                     self.charLevelMainMenuMoveLeft()
@@ -1354,6 +1365,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
             }
         }
         if(moveRight) {
+            charOp += 1
             if(menuLevel == 1) {
                 DispatchQueue.main.async {
                     self.charLevelMainMenuMoveRight()
@@ -1364,41 +1376,62 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
                 }
             }
         }
-        if(validTouch) {
-            if(touchHand == 0) { //touch with left hand
-                if(menuLevel == 2) { //return to main menu
-                    DispatchQueue.main.async {
-//                        self.hideSubMenu(idx: self.mainMenuPos)
-//                        self.showMainMenu()
-                        self.enterMainMenu(idx: self.mainMenuPos)
-                        self.menuLevel = 1
-                    }
-                } else if(menuLevel == 1) { //erase one character
-                    DispatchQueue.main.async {
-                        let str = self.inputLabel!.text!
-                        if(str.count > 0) {
-                            let start = str.index(str.startIndex, offsetBy: 0)
-                            let end = str.index(str.endIndex, offsetBy: -1)
-                            let range = start..<end
-                            self.inputLabel!.text! = String(str[range])
-                        }
-                    }
+        if(moveUp) {
+            charOp += 1
+            if(menuLevel == 1) {
+                DispatchQueue.main.async {
+                    self.charLevelMainMenuMoveUp()
                 }
-            } else { //touch with right hand
-                if(menuLevel == 2) { //select this character and return to main menu
-                    DispatchQueue.main.async {
-                        if(self.T9SubMenuLabel[self.mainMenuPos][self.subMenuPos].text! == "_") {
-                            self.inputLabel?.text! += "_"
-                        } else {
-                            self.inputLabel?.text! += self.T9SubMenuLabel[self.mainMenuPos][self.subMenuPos].text!
+            }
+        }
+        if(validTouch) {
+            DispatchQueue.main.sync {
+                if(self.inputLabel!.text?.count == 0 || self.inputLabel!.text?.count == self.sentenceLabel!.text?.count) {
+                    sentenceData += String(Date().timeIntervalSince1970) + " "
+                    print(Date().timeIntervalSince1970)
+                }
+                if(self.inputLabel!.text?.count == self.sentenceLabel!.text?.count) {
+                    sentenceData += String(charOp) + " "
+                    print(charOp)
+                    charOp = 0
+                    self.nextSentence()
+                    return
+                }
+                if(touchHand == 0) { //touch with left hand
+                    if(menuLevel == 2) { //return to main menu
+                        DispatchQueue.main.async {
+                            if(self.inputLabel!.text?.count != self.sentenceLabel!.text?.count) {
+                                self.enterMainMenu(idx: self.mainMenuPos)
+                                self.menuLevel = 1
+                            }
                         }
-                        self.enterMainMenu(idx: self.mainMenuPos)
-                        self.menuLevel = 1
+                    } else if(menuLevel == 1) { //erase one character
+                        DispatchQueue.main.async {
+                            let str = self.inputLabel!.text!
+                            if(str.count > 0) {
+                                let start = str.index(str.startIndex, offsetBy: 0)
+                                let end = str.index(str.endIndex, offsetBy: -1)
+                                let range = start..<end
+                                self.inputLabel!.text! = String(str[range])
+                            }
+                        }
                     }
-                } else if(menuLevel == 1) {
-                    DispatchQueue.main.async { //enter sub menu
-                        self.enterSubMenu(idx: self.mainMenuPos)
-                        self.menuLevel = 2
+                } else { //touch with right hand
+                    if(menuLevel == 2) { //select this character and return to main menu
+                        DispatchQueue.main.async {
+                            if(self.T9SubMenuLabel[self.mainMenuPos][self.subMenuPos].text! == "_") {
+                                self.inputLabel?.text! += "_"
+                            } else {
+                                self.inputLabel?.text! += self.T9SubMenuLabel[self.mainMenuPos][self.subMenuPos].text!
+                            }
+                            self.enterMainMenu(idx: self.mainMenuPos)
+                            self.menuLevel = 1
+                        }
+                    } else if(menuLevel == 1) {
+                        DispatchQueue.main.async { //enter sub menu
+                            self.enterSubMenu(idx: self.mainMenuPos)
+                            self.menuLevel = 2
+                        }
                     }
                 }
             }

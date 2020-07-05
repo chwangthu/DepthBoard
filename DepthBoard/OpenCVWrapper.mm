@@ -84,6 +84,7 @@ struct RingQueue {
     }
 };
 RingQueue rightQueue, leftQueue;
+RingQueue vQueueL, vQueueR;
 
 
 + (NSString *)openCVVersionString {
@@ -263,6 +264,7 @@ int lastY = 0;
     float distance = 100;
     int xcoord = -1, ycoord = -1;
     bool moveLeft = false, moveRight = false;
+    bool moveUp = false;
     bool validTouch = false;
     bool thumbTouch = false; //touch with thumb
     int touchHand = 0; //0 is lefthand, 1 is righthand
@@ -304,13 +306,27 @@ int lastY = 0;
 //            std::cout << rightRect.br().x << std::endl;
             rightQueue.insert(rightRect.br().x);
             leftQueue.insert(leftRect.tl().x);
-            if(rightQueue.getFirst() != 0 && rightQueue.getLast() != 0 && rightQueue.getFirst() - rightQueue.getLast() > 120) {
-                std::cout << "move right" << std::endl;
+            vQueueL.insert(leftRect.tl().y);
+            vQueueR.insert(rightRect.tl().y);
+            if(vQueueL.getFirst() != 0 && vQueueL.getLast() != 0 && vQueueL.getFirst() - vQueueL.getLast() > 100) {
+//                std::cout << "move up" << std::endl;
+                moveUp = true;
+                vQueueL.clear();
+                vQueueR.clear();
+            } else if(vQueueR.getFirst() != 0 && vQueueR.getLast() != 0 && vQueueR.getFirst() - vQueueR.getLast() > 100) {
+//                std::cout << "move up" << std::endl;
+                moveUp = true;
+                vQueueR.clear();
+                vQueueL.clear();
+            }
+            
+            if(rightQueue.getFirst() != 0 && rightQueue.getLast() != 0 && rightQueue.getFirst() - rightQueue.getLast() > 100) {
+//                std::cout << "move right" << std::endl;
                 moveRight = true;
                 rightQueue.clear();
             }
-            if(leftQueue.getFirst() != 0 && leftQueue.getLast() != 0 && leftQueue.getFirst() - leftQueue.getLast() < -120) {
-                std::cout << "move left" << std::endl;
+            if(leftQueue.getFirst() != 0 && leftQueue.getLast() != 0 && leftQueue.getFirst() - leftQueue.getLast() < -100) {
+//                std::cout << "move left" << std::endl;
                 moveLeft = true;
                 leftQueue.clear();
             }
@@ -332,7 +348,7 @@ int lastY = 0;
             cv::Point br = handRect.br();
 
             if(pressed == true) {
-                std::cout << "bottom " << br.y << std::endl;
+//                std::cout << "bottom " << br.y << std::endl;
                 
                 float last_total_depth = 0, last_cnt = 0;
                 std::vector<float> last_all_dis;
@@ -492,7 +508,7 @@ int lastY = 0;
         }
     }
    
-    NSDictionary *dict = @{@"validTouch":[NSNumber numberWithBool:validTouch], @"touchX":[NSNumber numberWithFloat:realX], @"touchY": [NSNumber numberWithFloat:realY], @"touchZ":[NSNumber numberWithFloat:distance], @"moveLeft":[NSNumber numberWithBool:moveLeft], @"moveRight":[NSNumber numberWithBool:moveRight], @"xcoord":[NSNumber numberWithInt:xcoord], @"ycoord":[NSNumber numberWithInt:ycoord], @"thumb":[NSNumber numberWithBool: thumbTouch], @"touchHand":[NSNumber numberWithInt: touchHand], @"words": wordArray};
+    NSDictionary *dict = @{@"validTouch":[NSNumber numberWithBool:validTouch], @"touchX":[NSNumber numberWithFloat:realX], @"touchY": [NSNumber numberWithFloat:realY], @"touchZ":[NSNumber numberWithFloat:distance], @"moveLeft":[NSNumber numberWithBool:moveLeft], @"moveRight":[NSNumber numberWithBool:moveRight], @"moveUp":[NSNumber numberWithBool:moveUp], @"xcoord":[NSNumber numberWithInt:xcoord], @"ycoord":[NSNumber numberWithInt:ycoord], @"thumb":[NSNumber numberWithBool: thumbTouch], @"touchHand":[NSNumber numberWithInt: touchHand], @"words": wordArray};
     return dict;
 }
 
