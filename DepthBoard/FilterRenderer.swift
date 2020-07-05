@@ -29,7 +29,7 @@ protocol FilterRenderer: class {
     var inputFormatDescription: CMFormatDescription? { get }
     
     // Render pixel buffer.
-    func render(pixelBuffer: CVPixelBuffer, imgBuffer: CVPixelBuffer, press: Bool) -> (jetBuffer: CVPixelBuffer, dict: NSDictionary)?
+    func render(pixelBuffer: CVPixelBuffer, imgBuffer: CVPixelBuffer, press: Bool, curLength: Int) -> (jetBuffer: CVPixelBuffer, dict: NSDictionary)?
 }
 
 func allocateOutputBufferPool(with inputFormatDescription: CMFormatDescription,

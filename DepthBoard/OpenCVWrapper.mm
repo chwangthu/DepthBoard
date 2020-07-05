@@ -31,7 +31,34 @@
 #define referenceWidth 4032
 #define referenceHeight 3024
 
+#define THUMB_MAX 15
+
 @implementation OpenCVWrapper
+
+struct Centroid {
+    double ux, uy, sx, sy;
+    void update(double a, double b) {
+        ux = a;
+        uy = b;
+    }
+    friend std::ostream &operator<<( std::ostream &output, const Centroid& c ) {
+        output << c.ux << " " << c.uy << " " << c.sx << " " << c.sy;
+        return output;
+    }
+};
+
+struct Pos {
+    double x, y;
+};
+
+const int MAX_WORD_LEN = 20;
+const double PI = 3.1415926;
+static constexpr double DOUBLE_MIN = std::numeric_limits<double>::lowest();
+int word_len = 0; //current candidate word length
+std::vector<std::string> candWords;
+std::vector<std::unordered_map<std::string, double>> words;
+std::unordered_map<char, Centroid> centroids; //the centroids of every character
+std::vector<std::unordered_map<char, double>> lookup_table;
 
 struct Finger {
     int pos;
@@ -171,6 +198,7 @@ int lastY = 0;
                    bg:(CVImageBufferRef)background
                    to:(CVPixelBufferRef)toBuffer
                 press:(BOOL)pressed
+            curLength:(int)curLen
 {
     BOOL flag = false;
     int touchX = 0, touchY = 0;
@@ -236,6 +264,8 @@ int lastY = 0;
     int xcoord = -1, ycoord = -1;
     bool moveLeft = false, moveRight = false;
     bool validTouch = false;
+    bool thumbTouch = false; //touch with thumb
+    int touchHand = 0; //0 is lefthand, 1 is righthand
 
     if (size >= 2) { //at least two coutours appear
 
@@ -361,8 +391,22 @@ int lastY = 0;
                 realX = (xRatio * referenceWidth - cameraOx) * distance / cameraFx;
                 realY = (yRatio * referenceHeight - cameraOy) * distance / cameraFy;
                 if(abs(distance - 100.0) < 1) validTouch = false;
-                else validTouch = true;
-                std::cout << "dis " << distance << " " << xcoord << " " << ycoord << " " << realX << " " << realY << std::endl;
+                else {
+                    validTouch = true;
+//                    if( (candWords.size() != 0 && candWords[0].length() == curLen) || curLen == -1 ) {
+//                        thumbTouch = true;
+//                    }
+                    if(distance > 35) thumbTouch = true;
+                    if(target == inds[leftIdx]) { //touch with left hand
+//                        if(xcoord - tl.x <= THUMB_MAX) thumbTouch = true;
+                        touchHand = 0;
+                    } else { //touch with right hand
+//                        if(br.x - xcoord <= THUMB_MAX) thumbTouch = true;
+                        touchHand = 1;
+                    }
+//                    std::cout << thumbTouch << std::endl;
+                }
+                //std::cout << "dis " << distance << " " << xcoord << " " << ycoord << " " << realX << " " << realY << std::endl;
             }
             
             std::vector<int> sum_array;
@@ -418,28 +462,177 @@ int lastY = 0;
         }
     }
 
-//    cv::resize(mat, mat, cv::Size(mat.cols / 2, mat.rows / 2));
-//    cv::resize(bg_mat, bg_mat, cv::Size(bg_mat.cols / 2, bg_mat.rows / 2));
-//
-//    cv::Mat ROI = canvas(cv::Range(mat.rows / 2, mat.rows / 2 + mat.rows), cv::Range(0, mat.cols));
-//
-//    mat.copyTo(ROI);
-//    ROI = canvas(cv::Range(mat.rows / 2, mat.rows / 2 + mat.rows), cv::Range(mat.cols, mat.cols*2));
-//    bg_mat.copyTo(ROI);
+    if(moveLeft) {
+        [self newWord];
+    } else if(moveRight) {
+        
+    } else if(thumbTouch) { //confirm
+        [self newWord];
+    } else if(validTouch && !thumbTouch) {
+        newTap(realX, distance);
+        candWords = getCandidateWords();
+    }
+
     
     CVPixelBufferLockBaseAddress(toBuffer, 0);
     void *mybase = CVPixelBufferGetBaseAddress(toBuffer) ;
     memcpy(mybase, mat.data, mat.total()*4);
     CVPixelBufferUnlockBaseAddress(toBuffer, 0);
-    
-//    cv::cvtColor(grayMat, grayMat, cv::COLOR_GRAY2BGRA);
-//    CVPixelBufferLockBaseAddress(grayBuffer, 0);
-//    mybase = CVPixelBufferGetBaseAddress(grayBuffer) ;
-//    memcpy(mybase, grayMat.data, grayMat.total()*4);
-//    CVPixelBufferUnlockBaseAddress(toBuffer, 0);
 
-    NSDictionary *dict = @{@"validTouch":[NSNumber numberWithBool:validTouch], @"touchX":[NSNumber numberWithFloat:realX], @"touchY": [NSNumber numberWithFloat:realY], @"touchZ":[NSNumber numberWithFloat:distance], @"moveLeft":[NSNumber numberWithBool:moveLeft], @"moveRight":[NSNumber numberWithBool:moveRight], @"xcoord":[NSNumber numberWithInt:xcoord], @"ycoord":[NSNumber numberWithInt:ycoord]};
+    NSMutableArray *wordArray = [[NSMutableArray alloc] init];
+    if(candWords.size() != 0) {
+        for(int i = 0; i < 5; i++) {
+            NSString *str = [NSString stringWithCString:candWords[i].c_str() encoding:[NSString defaultCStringEncoding]];
+            [wordArray addObject:str];
+        }
+    } else {
+        for(int i = 0; i < 5; i++) {
+            NSString *str = @"";
+            [wordArray addObject:str];
+        }
+    }
+   
+    NSDictionary *dict = @{@"validTouch":[NSNumber numberWithBool:validTouch], @"touchX":[NSNumber numberWithFloat:realX], @"touchY": [NSNumber numberWithFloat:realY], @"touchZ":[NSNumber numberWithFloat:distance], @"moveLeft":[NSNumber numberWithBool:moveLeft], @"moveRight":[NSNumber numberWithBool:moveRight], @"xcoord":[NSNumber numberWithInt:xcoord], @"ycoord":[NSNumber numberWithInt:ycoord], @"thumb":[NSNumber numberWithBool: thumbTouch], @"touchHand":[NSNumber numberWithInt: touchHand], @"words": wordArray};
     return dict;
+}
+
++(void) newWord { //clear everything
+    word_len = 0;
+    candWords.clear();
+    for(int i = 0; i < MAX_WORD_LEN; i++) {
+        lookup_table[i].clear();
+    }
+}
+
++(void) loadData { //load data
+    NSString* fileRoot = [[NSBundle mainBundle] pathForResource:@"wordslib" ofType:@"csv"];
+    std::ifstream wordsFile([fileRoot UTF8String]);
+    std::string s;
+    std::vector<std::string> rowInfo;
+    
+    for(int i = 0; i < MAX_WORD_LEN; i++) {
+        std::unordered_map<std::string, double> map;
+        words.push_back(map);
+        
+        std::unordered_map<char, double> map1;
+        lookup_table.push_back(map1);
+    }
+    
+    while(getline(wordsFile, s)) {
+        mySplit(s, ",", rowInfo);
+        std::stringstream ss;
+        ss << rowInfo[1];
+        double freq;
+        ss >> freq;
+        int len = rowInfo[0].length();
+        words[len-1][rowInfo[0]] = log( freq );
+    }
+    
+    fileRoot = [[NSBundle mainBundle] pathForResource:@"centroids" ofType:@"csv"];
+    std::ifstream centerFile([fileRoot UTF8String]);
+    std::vector<std::string> infor; std::string row;
+    while(getline(centerFile, row)) {
+        mySplit(row, ",", infor);
+        std::stringstream ss;
+        ss << infor[0];
+        char c;
+        ss >> c;
+        double ux, uy, sx, sy;
+        std::stringstream ss1; ss1 << infor[1]; ss1 >> ux;
+        std::stringstream ss2; ss2 << infor[2]; ss2 >> uy;
+        std::stringstream ss3; ss3 << infor[3]; ss3 >> sx;
+        std::stringstream ss4; ss4 << infor[4]; ss4 >> sy;
+        centroids[c] = Centroid{ux, uy, sx, sy};
+    }
+}
+
+double calPsi(char c, double x, double y) {
+    double z = pow(x-centroids[c].ux,2)/pow(centroids[c].sx,2) + pow(y-centroids[c].uy, 2)/pow(centroids[c].sy, 2);
+    return log( 1/(2*PI*centroids[c].sx*centroids[c].sy)*exp(-0.5*z) );
+}
+
+void newTap(double x, double y) { //calculate probability of this tap for each char
+    for(int c = 97; c < 123; c++) {
+        lookup_table[word_len][char(c)] = calPsi(c, x, y);
+//        all += lookup_table[word_len][char(c)];
+    }
+//    lookup_table[word_len]['0'] = calPsi('0', x, y); //第i次点击为字母char的概率
+    word_len = word_len + 1;
+}
+
+std::vector<std::string> getCandidateWords() {
+    double max_prob1 = DOUBLE_MIN;
+    double max_prob2 = DOUBLE_MIN;
+    double max_prob3 = DOUBLE_MIN;
+    double max_prob4 = DOUBLE_MIN;
+    double max_prob5 = DOUBLE_MIN;
+    std::string max_word1, max_word2, max_word3, max_word4, max_word5;
+    std::vector<std::string> ans;
+
+    for(std::unordered_map<std::string, double>::iterator i = words[word_len-1].begin(); i != words[word_len-1].end(); i++) {
+        std::string word = i->first;
+        double prob = i->second;
+        for(int i = 0; i < word.length(); i++) {
+            char c = word[i];
+            prob += lookup_table[i][c];
+        }
+        // cout << prob << endl;
+        if(prob > max_prob1) {
+            max_prob5 = max_prob4;
+            max_word5 = max_word4;
+            max_prob4 = max_prob3;
+            max_word4 = max_word3;
+            max_prob3 = max_prob2;
+            max_word3 = max_word2;
+            max_prob2 = max_prob1;
+            max_word2 = max_word1;
+            max_prob1 = prob;
+            max_word1 = word;
+        } else if(prob > max_prob2) {
+            max_prob5 = max_prob4;
+            max_word5 = max_word4;
+            max_prob4 = max_prob3;
+            max_word4 = max_word3;
+            max_prob3 = max_prob2;
+            max_word3 = max_word2;
+            max_prob2 = prob;
+            max_word2 = word;
+        } else if(prob > max_prob3) {
+            max_prob5 = max_prob4;
+            max_word5 = max_word4;
+            max_prob4 = max_prob3;
+            max_word4 = max_word3;
+            max_prob3 = prob;
+            max_word3 = word;
+        } else if(prob > max_prob4) {
+            max_prob5 = max_prob4;
+            max_word5 = max_word4;
+            max_prob4 = prob;
+            max_word4 = word;
+        } else if(prob > max_prob5) {
+            max_prob5 = prob;
+            max_word5 = word;
+        }
+    }
+    ans.push_back(max_word1); ans.push_back(max_word2); ans.push_back(max_word3); ans.push_back(max_word4); ans.push_back(max_word5);
+    return ans;
+}
+
+void mySplit(std::string str, std::string separator, std::vector<std::string> &result) {//对每一行以逗号为分隔符进行分割
+    result.clear();
+    int cutAt;
+    while( (cutAt = str.find_first_of(separator)) != str.npos )
+    {
+        if(cutAt > 0)
+        {
+            result.push_back(str.substr(0, cutAt));
+        }
+        str = str.substr(cutAt + 1);
+    }
+    if(str.length() > 0)
+    {
+        result.push_back(str);
+    }
 }
 
 @end

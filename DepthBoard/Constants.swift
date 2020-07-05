@@ -8,7 +8,7 @@
 
 import Foundation
 
-let PHR_PER_BLK = 15
+let PHR_PER_BLK = 10
 let BLKS = 4
 
 let xLabel = 50, yLabel = 350
@@ -16,6 +16,8 @@ let labelWidth = 600
 let labelHeight = 30
 let labelWidth2 = 150
 let labelOffset = 370
+let wordLabelWidth = 120
+let candNum = 5
 
 //Constants for camera, all in pixels
 let cameraOx = 2029.3673

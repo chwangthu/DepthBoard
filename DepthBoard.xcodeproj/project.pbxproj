@@ -12,6 +12,9 @@
 		2633CF1D1E7C65D500FC80E1 /* DepthToJETConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2633CF1C1E7C65D500FC80E1 /* DepthToJETConverter.swift */; };
 		2672370E1E79BFC0003D2EAA /* DepthToJET.metal in Sources */ = {isa = PBXBuildFile; fileRef = 2672370D1E79BFBF003D2EAA /* DepthToJET.metal */; };
 		30325081241CB17E00AED174 /* opencv2.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 30325080241CB17E00AED174 /* opencv2.framework */; };
+		304884EB246FA4670074AE8D /* T-40.txt in Resources */ = {isa = PBXBuildFile; fileRef = 304884EA246FA4670074AE8D /* T-40.txt */; };
+		304884ED24712D770074AE8D /* wordslib.csv in Resources */ = {isa = PBXBuildFile; fileRef = 304884EC24712D760074AE8D /* wordslib.csv */; };
+		304884EF247136C90074AE8D /* centroids.csv in Resources */ = {isa = PBXBuildFile; fileRef = 304884EE247136C80074AE8D /* centroids.csv */; };
 		30956DAE242C891500C592B1 /* phrases.txt in Resources */ = {isa = PBXBuildFile; fileRef = 30956DAD242C891500C592B1 /* phrases.txt */; };
 		30956DB0242E5E9200C592B1 /* Constants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30956DAF242E5E9200C592B1 /* Constants.swift */; };
 		6D20BC101FFE665100496684 /* PointCloudMetalView.mm in Sources */ = {isa = PBXBuildFile; fileRef = 6D20BC0F1FFE665100496684 /* PointCloudMetalView.mm */; };
@@ -38,6 +41,9 @@
 		28908F9028908E9000000001 /* LICENSE.txt */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text; path = LICENSE.txt; sourceTree = "<group>"; };
 		30325080241CB17E00AED174 /* opencv2.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = opencv2.framework; sourceTree = "<group>"; };
 		303DC591242BAFFC0016D739 /* DepthBoard-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "DepthBoard-Bridging-Header.h"; sourceTree = "<group>"; };
+		304884EA246FA4670074AE8D /* T-40.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = "T-40.txt"; sourceTree = "<group>"; };
+		304884EC24712D760074AE8D /* wordslib.csv */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = wordslib.csv; sourceTree = "<group>"; };
+		304884EE247136C80074AE8D /* centroids.csv */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = centroids.csv; sourceTree = "<group>"; };
 		30956DAD242C891500C592B1 /* phrases.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = phrases.txt; sourceTree = "<group>"; };
 		30956DAF242E5E9200C592B1 /* Constants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Constants.swift; sourceTree = "<group>"; };
 		6D20BC0F1FFE665100496684 /* PointCloudMetalView.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = PointCloudMetalView.mm; sourceTree = "<group>"; };
@@ -123,6 +129,9 @@
 			isa = PBXGroup;
 			children = (
 				30956DAD242C891500C592B1 /* phrases.txt */,
+				304884EA246FA4670074AE8D /* T-40.txt */,
+				304884EC24712D760074AE8D /* wordslib.csv */,
+				304884EE247136C80074AE8D /* centroids.csv */,
 				30325080241CB17E00AED174 /* opencv2.framework */,
 				E422DFB91CEF894F0047D7A4 /* DepthBoard */,
 				E422DFB81CEF894F0047D7A4 /* Products */,
@@ -227,7 +236,10 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				304884ED24712D770074AE8D /* wordslib.csv in Resources */,
+				304884EB246FA4670074AE8D /* T-40.txt in Resources */,
 				30956DAE242C891500C592B1 /* phrases.txt in Resources */,
+				304884EF247136C90074AE8D /* centroids.csv in Resources */,
 				E422DFC51CEF894F0047D7A4 /* LaunchScreen.storyboard in Resources */,
 				E422DFC21CEF894F0047D7A4 /* Assets.xcassets in Resources */,
 				E422DFC01CEF894F0047D7A4 /* Main.storyboard in Resources */,

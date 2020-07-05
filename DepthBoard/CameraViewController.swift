@@ -63,30 +63,9 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
     @IBOutlet weak var recordButton: UIButton!
     // MARK: - Properties
     
-    @IBAction func onClickRecording(_ sender: Any) {
-        nextSentence()
-//        if !self.isRecording {
-//            //设置录像的保存地址（在Documents目录下，名为temp.mp4）
-//            let paths = NSSearchPathForDirectoriesInDomains(.documentDirectory,
-//                                                            .userDomainMask, true)
-//            let documentsDirectory = paths[0] as String
-//            let filePath = "\(documentsDirectory)/temp.mp4"
-//            let fileURL = URL(fileURLWithPath: filePath)
-//            //启动视频编码输出
-//            fileOutput.startRecording(to: fileURL, recordingDelegate: self)
-//
-//            //记录状态：录像中...
-//            self.isRecording = true
-//            //开始、结束按钮颜色改变
-//        }
-//        else {
-//            //停止视频编码输出
-//            fileOutput.stopRecording()
-//
-//            //记录状态：录像结束
-//            self.isRecording = false
-//            //开始、结束按钮颜色改变
-//        }
+    @IBAction func onClickRecording(_ sender: Any) { //restart this trial
+        clearAll()
+        OpenCVWrapper.newWord()
     }
     
     @IBOutlet weak private var resumeButton: UIButton!
@@ -183,12 +162,161 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
     private var inputLabel: UILabel?
     private var blkLabel: UILabel?
     private var phrLabel: UILabel?
+    private var modeLabel: UILabel?
+    private var candWordsLabel = [UILabel]() // UILabel to hold candidate words
+    private var curCandNum = 0
+    private var curWords = [String]() //words for current sentence
+    private var curPointer: Int = 0 // pointer to curWords
+    private var matchY = 0, matchN = 0, selectY = 0, selectN = 0, undo = 0, del = 0;
+    
+    private func initWordsLabel() {
+        for i in 0 ..< 5 {
+            let label = UILabel(frame: CGRect(x: 0, y: 0, width: 140, height: labelHeight))
+            label.center = CGPoint(x: xLabel + 2*labelHeight + 40, y: 750 - 140*i)
+            label.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2));
+            label.text = ""
+            label.textAlignment = NSTextAlignment.center
+            label.font = UIFont(name: "Courier", size: 20.0)
+            label.textColor = UIColor.white
+            label.layer.borderWidth = 1
+            label.layer.borderColor = UIColor.white.cgColor
+            candWordsLabel.append(label)
+            self.view.addSubview(label)
+        }
+    }
+    
+    private var inputMode: Int = 0 //0 for word-level, 1 for char-level
+    private var T9MenuArray = [String](arrayLiteral: "abc", "def", "ghi", "jkl", "mno", "pqrs", "tuv", "wxyz", "_.?")
+    private var charTable = [String](arrayLiteral: "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "_", ".", "?")
+    private var T9MenuLabel = [UILabel]()
+    private var T9SubMenuCnt = [Int](arrayLiteral: 3,3,3,3,3,4,3,4,3)
+    private var T9SubMenuLabel = [[UILabel]]()
+    private var mainMenuPos = 4
+    private var subMenuPos = 0
+    private var menuLevel = 1 //1 for main menu, 2 for sub menu
+    private func initT9Menu() {
+        for i in 0 ..< 9 {
+            let m = i / 3
+            let n = i % 3
+            let label = UILabel(frame: CGRect(x: 0, y: 0, width: 100, height: 80))
+            label.center = CGPoint(x: xLabel + 2*labelHeight + 40 + m * 80, y: 550 - 100*n)
+            label.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2));
+            label.text = T9MenuArray[i]
+            label.textAlignment = NSTextAlignment.center
+            label.font = UIFont(name: "Courier", size: 23.0)
+            label.textColor = UIColor.white
+            label.backgroundColor = UIColor.black
+            label.layer.borderWidth = 1
+            label.layer.borderColor = UIColor.white.cgColor
+            label.isHidden = true
+            T9MenuLabel.append(label)
+            self.view.addSubview(label)
+        }
+        var cnt = 0
+        for i in 0 ..< 9 {
+            var subMenuLabel = [UILabel]()
+            for j in 0 ..< T9SubMenuCnt[i] {
+                let label = UILabel(frame: CGRect(x: 0, y: 0, width: 100, height: 100))
+                label.center = CGPoint(x: xLabel + 2*labelHeight + 80, y: 600 - 100*j)
+                label.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2));
+                label.text = charTable[cnt]
+                cnt = cnt + 1
+                label.textAlignment = NSTextAlignment.center
+                label.font = UIFont(name: "Courier", size: 25.0)
+                label.textColor = UIColor.white
+                label.backgroundColor = UIColor.black
+                label.layer.borderWidth = 1
+                label.layer.borderColor = UIColor.white.cgColor
+                label.isHidden = true
+                subMenuLabel.append(label)
+                self.view.addSubview(label)
+            }
+            T9SubMenuLabel.append(subMenuLabel)
+        }
+    }
+    
+    private func hideMainMenu() {
+        for i in 0 ..< 9 {
+            T9MenuLabel[i].isHidden = true
+        }
+    }
+    
+    private func showMainMenu() {
+        T9MenuLabel[mainMenuPos].backgroundColor = UIColor.black
+        mainMenuPos = 4
+        for i in 0 ..< 9 {
+            T9MenuLabel[i].isHidden = false
+        }
+        T9MenuLabel[mainMenuPos].backgroundColor = UIColor(red: 0/255, green: 125/255, blue: 0/255, alpha: 1.0)
+    }
+    
+    private func showSubMenu(idx: Int) {
+        T9SubMenuLabel[idx][subMenuPos].backgroundColor = UIColor.black
+        subMenuPos = 0
+        for i in 0 ..< T9SubMenuCnt[idx] {
+            T9SubMenuLabel[idx][i].isHidden = false
+        }
+        T9SubMenuLabel[idx][subMenuPos].backgroundColor = UIColor(red: 0/255, green: 125/255, blue: 0/255, alpha: 1.0)
+    }
+    
+    private func hideSubMenu(idx: Int) {
+        for i in 0 ..< T9SubMenuCnt[idx] {
+            T9SubMenuLabel[idx][i].isHidden = true
+        }
+    }
+    
+    private func enterSubMenu(idx: Int) {
+        hideMainMenu()
+        showSubMenu(idx: idx)
+    }
+    
+    private func enterMainMenu(idx: Int) {
+        hideSubMenu(idx: idx)
+        showMainMenu()
+    }
+    
+    private func charLevelMainMenuMoveLeft() {
+        T9MenuLabel[mainMenuPos].backgroundColor = UIColor.black
+        mainMenuPos = (mainMenuPos - 1) % 9
+        T9MenuLabel[mainMenuPos].backgroundColor = UIColor(red: 0/255, green: 125/255, blue: 0/255, alpha: 1.0)
+    }
+    
+    private func charLevelMainMenuMoveRight() {
+        T9MenuLabel[mainMenuPos].backgroundColor = UIColor.black
+        mainMenuPos = (mainMenuPos + 1) % 9
+        T9MenuLabel[mainMenuPos].backgroundColor = UIColor(red: 0/255, green: 125/255, blue: 0/255, alpha: 1.0)
+    }
+    
+    private func charLevelSubMenuMoveLeft() {
+        T9SubMenuLabel[mainMenuPos][subMenuPos].backgroundColor = UIColor.black
+        subMenuPos = (subMenuPos - 1) % T9SubMenuCnt[mainMenuPos]
+        T9SubMenuLabel[mainMenuPos][subMenuPos].backgroundColor = UIColor(red: 0/255, green: 125/255, blue: 0/255, alpha: 1.0)
+    }
+    
+    private func charLevelSubMenuMoveRight() {
+        T9SubMenuLabel[mainMenuPos][subMenuPos].backgroundColor = UIColor.black
+        subMenuPos = (subMenuPos + 1) % T9SubMenuCnt[mainMenuPos]
+        T9SubMenuLabel[mainMenuPos][subMenuPos].backgroundColor = UIColor(red: 0/255, green: 125/255, blue: 0/255, alpha: 1.0)
+    }
+    
+    private func hideWordMenu() {
+        for i in 0 ..< 5 {
+            candWordsLabel[i].isHidden = true
+        }
+    }
+    
+    private func showWordMenu() {
+        for i in 0 ..< 5 {
+            candWordsLabel[i].isHidden = false
+        }
+    }
+
     
     private func initView() {
         sentenceLabel = UILabel(frame: CGRect(x: 0, y: 0, width: labelWidth, height: labelHeight))
         sentenceLabel?.center = CGPoint(x: xLabel, y: yLabel)
         sentenceLabel?.textAlignment = NSTextAlignment.left
-        sentenceLabel?.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2));
+        sentenceLabel?.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2))
         sentenceLabel?.text = "The quick brown fox jumps over the lazy dog"
         sentenceLabel?.font = UIFont(name: "Courier", size: 20.0)
         sentenceLabel?.textColor = UIColor.white
@@ -197,7 +325,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         inputLabel = UILabel(frame: CGRect(x: 0, y: 0, width: labelWidth, height: labelHeight))
         inputLabel?.center = CGPoint(x: xLabel + labelHeight, y: yLabel)
         inputLabel?.textAlignment = NSTextAlignment.left
-        inputLabel?.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2));
+        inputLabel?.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2))
         inputLabel?.text = ""
         inputLabel?.font = UIFont(name: "Courier", size: 20.0)
         inputLabel?.textColor = UIColor.white
@@ -206,7 +334,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         blkLabel = UILabel(frame: CGRect(x: 0, y: 0, width: labelWidth2, height: labelHeight))
         blkLabel?.center = CGPoint(x: xLabel, y: yLabel + labelOffset)
         blkLabel?.textAlignment = NSTextAlignment.left
-        blkLabel?.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2));
+        blkLabel?.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2))
         blkLabel?.text = "BLK: 1/" + String(BLKS)
         blkLabel?.font = UIFont(name: "Courier", size: 20.0)
         blkLabel?.textColor = UIColor.white
@@ -215,13 +343,28 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         phrLabel = UILabel(frame: CGRect(x: 0, y: 0, width: labelWidth2, height: labelHeight))
         phrLabel?.center = CGPoint(x: xLabel + labelHeight, y: yLabel + labelOffset)
         phrLabel?.textAlignment = NSTextAlignment.left
-        phrLabel?.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2));
+        phrLabel?.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2))
         phrLabel?.text = "PHR: 1/" + String(PHR_PER_BLK)
         phrLabel?.font = UIFont(name: "Courier", size: 20.0)
         phrLabel?.textColor = UIColor.white
         self.view.addSubview(phrLabel!)
         
-        // self.addKeyboardPic()
+        modeLabel = UILabel(frame: CGRect(x: 0, y: 0, width: labelWidth2, height: labelHeight))
+        modeLabel?.center = CGPoint(x: xLabel + 2*labelHeight, y: yLabel + labelOffset)
+        modeLabel?.textAlignment = NSTextAlignment.left
+        modeLabel?.transform = CGAffineTransform(rotationAngle: CGFloat(Double.pi * 3/2))
+        modeLabel?.text = "Mode: Word"
+        modeLabel?.font = UIFont(name: "Courier", size: 20.0)
+        modeLabel?.textColor = UIColor.white
+        self.view.addSubview(modeLabel!)
+        
+//         self.addKeyboardPic()
+        self.initWordsLabel()
+        self.initT9Menu()
+        if(inputMode == 1) {
+            hideWordMenu()
+            showMainMenu()
+        }
     }
     
     //add keyboard pictures in the screen
@@ -229,14 +372,14 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         let keyboardPic = UIImage(named: "keyboard")
         let keyboardView = UIImageView(image: keyboardPic)
         keyboardView.transform = CGAffineTransform(rotationAngle: CGFloat.pi*3/2)
-        keyboardView.frame = CGRect(x: 150, y: 150, width: 200, height: 600)
+        keyboardView.frame = CGRect(x: 180, y: 150, width: 200, height: 600)
         self.view.addSubview(keyboardView)
     }
     
     private func loadSentences() {
         var offset: Int = 0
         var tempArr = [String]()
-        if let path = Bundle.main.path(forResource: "phrases", ofType: "txt") {
+        if let path = Bundle.main.path(forResource: "T-40", ofType: "txt") {
             do {
                 let data = try String(contentsOfFile: path, encoding: .utf8)
                 let sentence = data.components(separatedBy: "\r\n")
@@ -247,19 +390,19 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         }
         //drop the last zero-len one and shuffle the sentences
         let _ = tempArr.popLast()
-        tempArr.shuffle()
+//        tempArr.shuffle()
        
         var data: String = ""
         for i in 0..<BLKS*PHR_PER_BLK {
             var tempSent = ""
-            if((i % PHR_PER_BLK) - PHR_PER_BLK + 2 == 0) {
-                tempSent = "the quick brown fox jumps over the lazy dog"
-            } else if((i % PHR_PER_BLK) - PHR_PER_BLK + 2 == 1) {
-                tempSent = "the five boxing wizards jump quickly"
-            } else {
+//            if((i % PHR_PER_BLK) - PHR_PER_BLK + 2 == 0) {
+//                tempSent = "the quick brown fox jumps over the lazy dog "
+//            } else if((i % PHR_PER_BLK) - PHR_PER_BLK + 2 == 1) {
+//                tempSent = "the five boxing wizards jump quickly "
+//            } else {
                 tempSent = tempArr[offset]
                 offset += 1;
-            }
+//            }
             sentenceArray.append(tempSent)
             data = data + tempSent + "\n"
         }
@@ -277,6 +420,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         setSentence()
     }
     
+    private var allData:String = ""
     private var sentenceData:String = ""
     private var curSentence:Int = 0
     private var curChar:Int = 0 //current char in current sentence
@@ -286,14 +430,25 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         if curSentence >= sentenceArray.count {
             DispatchQueue.main.async {
                 self.sentenceLabel?.text = "Finished!"
+                self.isRest = true
+            }
+            if let path = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+                let filename = path.appendingPathComponent("alldata.txt")
+                    do {
+                        try allData.write(to: filename, atomically: true, encoding: .utf8)
+                    } catch {
+                        print("Write data to files failed")
+                }
             }
             return;
         }
         DispatchQueue.main.async {
-            self.sentenceLabel?.text = self.sentenceArray[self.curSentence]
+            self.sentenceLabel?.text = self.sentenceArray[self.curSentence] + " "
             self.blkLabel?.text = "BLK: " + String(self.curSentence/PHR_PER_BLK+1) + "/" + String(BLKS)
             self.phrLabel?.text = "PHR: " + String(self.curSentence%PHR_PER_BLK+1) + "/" + String(PHR_PER_BLK)
         }
+        curWords = sentenceArray[curSentence].components(separatedBy: " ")
+        curPointer = 0
     }
     
     private func nextSentence() {
@@ -302,9 +457,15 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         }
         
         if let path = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first {
+            sentenceData += "\n" + String(matchY) + " " + String(matchN) + " " + String(selectY) + " " + String(selectN) + " " + String(undo) + " " + String(del) + "\n"
+            sentenceData += (inputLabel?.text!)! + "\n"
+            let result = sentenceData
+            allData += sentenceData
+            sentenceData = ""
+            print(result)
             let filename = path.appendingPathComponent(String(curSentence) + ".txt")
             do {
-                try sentenceData.write(to: filename, atomically: false, encoding: .utf8)
+                try result.write(to: filename, atomically: true, encoding: .utf8)
             } catch {
                 print("Write data to files failed")
             }
@@ -312,12 +473,42 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         
         curSentence = curSentence + 1
         curChar = 0
-        clearInput()
+        clearAll()
         setSentence()
     }
     
-    private func clearInput() {
+    private func clearAll() { //when switch to next sentence, clear everything
+        for i in 0..<5 {
+            candWordsLabel[i].text = ""
+            candWordsLabel[i].backgroundColor = UIColor.black
+        }
+        curPointer = 0
         inputLabel!.text = ""
+        curCandNum = 0
+        matchY = 0; matchN = 0; selectY = 0; selectN = 0; undo = 0; del = 0
+        sentenceData = ""
+    }
+    
+    private func clearInput() {
+        if(candWordsLabel[0].text!.count > 0) {
+            undo += 1
+            for i in 0..<5 {
+                candWordsLabel[i].text = ""
+                candWordsLabel[i].backgroundColor = UIColor.black
+            }
+        } else { //clear word by word
+            if(curPointer != 0) {
+                del += 1
+                curPointer = curPointer - 1
+                let str = inputLabel!.text!
+                let start = str.index(str.startIndex, offsetBy: 0)
+                let end = str.index(str.endIndex, offsetBy: -curWords[curPointer].count-1)
+                let range = start..<end
+                inputLabel!.text! = String(str[range])
+                //modify input label
+            }
+        }
+        curCandNum = 0
         sentenceData = ""
         curChar = 0
     }
@@ -349,6 +540,7 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         
         initView()
         loadSentences()
+        OpenCVWrapper.loadData() //load centroids data
         
         // Keep the screen unlock
         UIApplication.shared.isIdleTimerDisabled = true
@@ -995,38 +1187,6 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
         var blockBuffer: CMBlockBuffer?
         var audioBufferList = AudioBufferList()
         var cnt = 0
-//        let formatDesc:CMFormatDescription? = CMSampleBufferGetFormatDescription(sampleBuffer)
-//        print(formatDesc)
-//        Optional(<CMAudioFormatDescription 0x2819ba080 [0x1dd53dde0]> {
-//            mediaType:'soun'
-//            mediaSubType:'lpcm'
-//            mediaSpecific: {
-//                ASBD: {
-//                    mSampleRate: 44100.000000
-//                    mFormatID: 'lpcm'
-//                    mFormatFlags: 0xc
-//                    mBytesPerPacket: 2
-//                    mFramesPerPacket: 1
-//                    mBytesPerFrame: 2
-//                    mChannelsPerFrame: 1
-//                    mBitsPerChannel: 16     }
-//                cookie: {(null)}
-//                ACL: {Mono}
-//                FormatList Array: {
-//                    Index: 0
-//                    ChannelLayoutTag: 0x640001
-//                    ASBD: {
-//                    mSampleRate: 44100.000000
-//                    mFormatID: 'lpcm'
-//                    mFormatFlags: 0xc
-//                    mBytesPerPacket: 2
-//                    mFramesPerPacket: 1
-//                    mBytesPerFrame: 2
-//                    mChannelsPerFrame: 1
-//                    mBitsPerChannel: 16     }}
-//            }
-//            extensions: {(null)}
-//        })
         CMSampleBufferGetAudioBufferListWithRetainedBlockBuffer(sampleBuffer, bufferListSizeNeededOut: nil, bufferListOut: &audioBufferList, bufferListSize: MemoryLayout<AudioBufferList>.size, blockBufferAllocator: nil, blockBufferMemoryAllocator: nil, flags: kCMSampleBufferFlag_AudioBufferList_Assure16ByteAlignment, blockBufferOut: &blockBuffer)
         let buffers = UnsafeBufferPointer<AudioBuffer>(start: &audioBufferList.mBuffers, count: Int(audioBufferList.mNumberBuffers))
         // mNumberBuffers normally equals to 1
@@ -1141,7 +1301,15 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
             if pressed {
                 print("pressed")
             }
-            guard let result = videoDepthConverter.render(pixelBuffer: depthPixelBuffer, imgBuffer: videoPixelBuffer, press: pressed) else {
+            
+            var curLength:Int
+            if(curPointer == curWords.count) {
+                curLength = -1
+            } else {
+                curLength = curWords[curPointer].count
+            }
+            
+            guard let result = videoDepthConverter.render(pixelBuffer: depthPixelBuffer, imgBuffer: videoPixelBuffer, press: pressed, curLength: curLength) else {
                 print("Unable to process depth")
                 return
             }
@@ -1159,83 +1327,163 @@ class CameraViewController: UIViewController, AVCaptureDataOutputSynchronizerDel
             }
             
             let dict = result.dict
-            let moveLeft = dict["moveLeft"] as! Bool
-            let moveRight = dict["moveRight"] as! Bool
-            let validTouch = dict["validTouch"] as! Bool
-            if(moveLeft) {
-                DispatchQueue.main.async {
-                    self.clearInput()
-                }
+            if(inputMode == 0) {
+                handleWordLevel(dict: dict)
+            } else {
+                handleCharLevel(dict: dict)
             }
-            if(moveRight) {
-                DispatchQueue.main.async {
-                    self.nextSentence()
-                }
-            }
-            if(validTouch) {
-                if(curChar < Array(self.sentenceArray[curSentence]).count) {
-                    DispatchQueue.main.async {
-                        self.appendInput()
-                    }
-                    let touchX = dict["touchX"] as! Float
-                    let touchY = dict["touchY"] as! Float
-                    let touchZ = dict["touchZ"] as! Float
-                    let xcoord = dict["xcoord"] as! Int
-                    let ycoord = dict["ycoord"] as! Int
-                    sentenceData += String(xcoord) + " " + String(ycoord) + " " + String(touchX) + " " + String(touchY) + " " + String(touchZ) + " " + String(Date().timeIntervalSince1970)
-                    sentenceData += " " + String(Array(self.sentenceArray[curSentence])[curChar]) + "\n"
-                    curChar = curChar + 1
-                }
-            }
-            
             jetView.pixelBuffer = result.jetBuffer
-            
-            //updateDepthLabel(depthFrame: depthPixelBuffer, videoFrame: videoPixelBuffer)
         }
     }
     
-    func updateDepthLabel(depthFrame: CVPixelBuffer, videoFrame: CVPixelBuffer) {
-        
-        if touchDetected {
-            guard let texturePoint = jetView.texturePointForView(point: self.touchCoordinates) else {
+    //variables for char level input
+    private func handleCharLevel(dict: NSDictionary) {
+        let moveLeft = dict["moveLeft"] as! Bool
+        let moveRight = dict["moveRight"] as! Bool
+        let validTouch = dict["validTouch"] as! Bool
+        let touchHand = dict["touchHand"] as! Int
+        if(moveLeft) {
+            if(menuLevel == 1) {
                 DispatchQueue.main.async {
-                    self.touchDepth.text = ""
+                    self.charLevelMainMenuMoveLeft()
                 }
-                return
+            } else if(menuLevel == 2) {
+                DispatchQueue.main.async {
+                    self.charLevelSubMenuMoveLeft()
+                }
             }
-            
-            // scale
-            let scale = CGFloat(CVPixelBufferGetWidth(depthFrame)) / CGFloat(CVPixelBufferGetWidth(videoFrame))
-            let depthPoint = CGPoint(x: CGFloat(CVPixelBufferGetWidth(depthFrame)) - 1.0 - texturePoint.x * scale, y: texturePoint.y * scale)
-            
-            assert(kCVPixelFormatType_DepthFloat16 == CVPixelBufferGetPixelFormatType(depthFrame))
-            CVPixelBufferLockBaseAddress(depthFrame, .readOnly)
-            let rowData = CVPixelBufferGetBaseAddress(depthFrame)! + Int(depthPoint.y) * CVPixelBufferGetBytesPerRow(depthFrame)
-            // swift does not have an Float16 data type. Use UInt16 instead, and then translate
-            var f16Pixel = rowData.assumingMemoryBound(to: UInt16.self)[Int(depthPoint.x)]
-            CVPixelBufferUnlockBaseAddress(depthFrame, .readOnly)
-            
-            var f32Pixel = Float(0.0)
-            var src = vImage_Buffer(data: &f16Pixel, height: 1, width: 1, rowBytes: 2)
-            var dst = vImage_Buffer(data: &f32Pixel, height: 1, width: 1, rowBytes: 4)
-            vImageConvert_Planar16FtoPlanarF(&src, &dst, 0)
-            
-            // Convert the depth frame format to cm
-            let depthString = String(format: "%.2f cm", f32Pixel * 100)
-            
-            // Update the label
-            DispatchQueue.main.async {
-                self.touchDepth.textColor = UIColor.white
-                self.touchDepth.text = depthString
-                self.touchDepth.sizeToFit()
+        }
+        if(moveRight) {
+            if(menuLevel == 1) {
+                DispatchQueue.main.async {
+                    self.charLevelMainMenuMoveRight()
+                }
+            } else if(menuLevel == 2) {
+                DispatchQueue.main.async {
+                    self.charLevelSubMenuMoveRight()
+                }
             }
-        } else {
-            DispatchQueue.main.async {
-                self.touchDepth.text = ""
+        }
+        if(validTouch) {
+            if(touchHand == 0) { //touch with left hand
+                if(menuLevel == 2) { //return to main menu
+                    DispatchQueue.main.async {
+//                        self.hideSubMenu(idx: self.mainMenuPos)
+//                        self.showMainMenu()
+                        self.enterMainMenu(idx: self.mainMenuPos)
+                        self.menuLevel = 1
+                    }
+                } else if(menuLevel == 1) { //erase one character
+                    DispatchQueue.main.async {
+                        let str = self.inputLabel!.text!
+                        if(str.count > 0) {
+                            let start = str.index(str.startIndex, offsetBy: 0)
+                            let end = str.index(str.endIndex, offsetBy: -1)
+                            let range = start..<end
+                            self.inputLabel!.text! = String(str[range])
+                        }
+                    }
+                }
+            } else { //touch with right hand
+                if(menuLevel == 2) { //select this character and return to main menu
+                    DispatchQueue.main.async {
+                        if(self.T9SubMenuLabel[self.mainMenuPos][self.subMenuPos].text! == "_") {
+                            self.inputLabel?.text! += "_"
+                        } else {
+                            self.inputLabel?.text! += self.T9SubMenuLabel[self.mainMenuPos][self.subMenuPos].text!
+                        }
+                        self.enterMainMenu(idx: self.mainMenuPos)
+                        self.menuLevel = 1
+                    }
+                } else if(menuLevel == 1) {
+                    DispatchQueue.main.async { //enter sub menu
+                        self.enterSubMenu(idx: self.mainMenuPos)
+                        self.menuLevel = 2
+                    }
+                }
             }
         }
     }
     
+    private func handleWordLevel(dict: NSDictionary) {
+        let moveLeft = dict["moveLeft"] as! Bool
+        let moveRight = dict["moveRight"] as! Bool
+        let validTouch = dict["validTouch"] as! Bool
+        let thumbTouch = dict["thumb"] as! Bool
+        if(moveLeft) {
+            DispatchQueue.main.async {
+                self.clearInput()
+            }
+        }
+        if(moveRight) {
+            DispatchQueue.main.async {
+                if(self.candWordsLabel[0].text!.count > 0) {
+                    self.candWordsLabel[self.curCandNum].backgroundColor = UIColor.black
+                    self.curCandNum = (self.curCandNum + 1) % candNum
+                    self.candWordsLabel[self.curCandNum].backgroundColor = UIColor(red: 0/255, green: 125/255, blue: 0/255, alpha: 1.0)
+                }
+            }
+        }
+        
+        if(validTouch) {
+            if(thumbTouch) { //touch with thumb means select this word or jump to next
+                DispatchQueue.main.async {
+                    if(self.inputLabel!.text?.count == self.sentenceLabel!.text?.count) {
+                        self.nextSentence()
+                    } else { //select words
+                        if(self.candWordsLabel[self.curCandNum].text! == self.curWords[self.curPointer]) {
+                            if(self.curCandNum == 0) {
+                                self.matchY += 1
+                            } else {
+                                self.selectY += 1
+                            }
+                        } else {
+                            if(self.curCandNum == 0) {
+                                self.matchN += 1
+                            } else {
+                                self.selectN += 1
+                            }
+                        }
+                        self.curPointer += 1
+                        self.inputLabel?.text! += self.candWordsLabel[self.curCandNum].text! + " "
+                        for i in 0..<5 {
+                            self.candWordsLabel[i].text = ""
+                            self.candWordsLabel[i].backgroundColor = UIColor.black
+                        }
+                        self.curCandNum = 0
+                    }
+                }
+            } else {
+                DispatchQueue.main.async {
+                    let words:NSArray = dict["words"] as! NSMutableArray
+                    var wordArr = Array<String>()
+                    var exist:Bool = false
+                    for i in 0..<candNum {
+                        let word = words[i] as! String
+                        wordArr.append(word)
+                        if(word == self.curWords[self.curPointer]) {
+                            exist = true
+                        }
+                    }
+                    for i in 0..<candNum {
+                        self.candWordsLabel[i].text = wordArr[i]
+                        if(wordArr[i].count >= 10) {
+                            self.candWordsLabel[i].font = UIFont(name: "Courier", size: 18.0)
+                        } else {
+                            self.candWordsLabel[i].font = UIFont(name: "Courier", size: 20.0)
+                        }
+                    }
+                    self.candWordsLabel[self.curCandNum].backgroundColor = UIColor(red: 0/255, green: 125/255, blue: 0/255, alpha: 1.0)
+                }
+//                let touchX = dict["touchX"] as! Float
+//                let touchY = dict["touchY"] as! Float
+//                let touchZ = dict["touchZ"] as! Float
+//                let xcoord = dict["xcoord"] as! Int
+//                let ycoord = dict["ycoord"] as! Int
+                sentenceData += String(Date().timeIntervalSince1970) + " "
+            }
+        }
+    }
 }
 
 extension AVCaptureVideoOrientation {

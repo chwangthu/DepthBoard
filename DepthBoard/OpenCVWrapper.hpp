@@ -18,7 +18,11 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSDictionary*) showContours:(CVPixelBufferRef)pixelBuffer
                     bg:(CVImageBufferRef)background
                     to:(CVPixelBufferRef)toBuffer
-                 press:(BOOL)pressed;
+                 press:(BOOL)pressed
+             curLength:(int)curLen;
+
++ (void) newWord;
++ (void) loadData;
 
 @end
 

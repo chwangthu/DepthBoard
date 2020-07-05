@@ -233,7 +233,7 @@ class DepthToJETConverter: FilterRenderer {
     
     // MARK: - Depth to JET Conversion
     
-    func render(pixelBuffer: CVPixelBuffer, imgBuffer: CVPixelBuffer, press: Bool) -> (jetBuffer: CVPixelBuffer, dict: NSDictionary)? {
+    func render(pixelBuffer: CVPixelBuffer, imgBuffer: CVPixelBuffer, press: Bool, curLength: Int) -> (jetBuffer: CVPixelBuffer, dict: NSDictionary)? {
         if !isPrepared {
             assertionFailure("Invalid state: Not prepared")
             return nil
@@ -256,7 +256,7 @@ class DepthToJETConverter: FilterRenderer {
 //        }
         
         
-        let dict = OpenCVWrapper.showContours(pixelBuffer, bg: imgBuffer, to: outputPixelBuffer, press: press) as NSDictionary
+        let dict = OpenCVWrapper.showContours(pixelBuffer, bg: imgBuffer, to: outputPixelBuffer, press: press, curLength: Int32(curLength)) as NSDictionary
         
         return (outputPixelBuffer, dict)
     }
